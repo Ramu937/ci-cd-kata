@@ -1,0 +1,57 @@
+pipeline {
+    agent any
+    stages {
+		stage('Checkout') {
+            steps { //Checking out the repo
+                checkout  git repo URL
+            }
+        stage('Compile') {
+            steps {
+                gradlew('clean', 'classes')
+            }
+        }
+        stage('Unit Tests') {
+            steps {
+                gradlew('test')
+            }
+            post {
+                always {
+                    junit '**/build/test-results/test/TEST-*.xml'
+                }
+            }
+        }
+        stage('SonarqubeCodeQuality') {
+            environment {
+                SONAR_LOGIN = credentials('SONARCLOUD_TOKEN')
+            }
+            parallel {
+                stage('Integration Tests') {
+                    steps {
+                        gradlew('integrationTest')
+                    }
+                    post {
+                        always {
+                            junit '**/build/test-results/integrationTest/TEST-*.xml'
+                        }
+                    }
+                }
+                stage('CodeAnalysis') {
+                    steps {
+                        gradlew('sonarqube')
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            environment {
+                API_KEY = credentials('API_KEY')
+            }
+            steps {
+                unstash 'app'
+                gradlew('deployincubyte')
+            }
+        }
+    }
+    
+}
